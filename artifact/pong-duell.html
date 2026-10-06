@@ -1,27 +1,30 @@
-<title>Pong Duell</title>
+<title>PD Pong</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap">
 <style>
-  /* Layout: ein Bildschirm wie ein alter Bernstein-Monitor: Spielfeld oben, Statuszeile und Bedienung darunter */
+  /* Layout: heller, ruhiger Firmenauftritt. Spielfeld als blasser Türkis-Himmel, auf dem der Gegner als Wolke schwebt.
+     Farben an PD angelehnt (Türkis + dunkles Petrol). Exakte Werte aus dem PD-Styleguide hier eintragen. */
   :root {
-    --bg: #15100a;
-    --panel: #20180f;
-    --amber: #ffb547;
-    --amber-dim: #7d5426;
-    --line: #3b2b19;
-    --text: #f2dcb8;
-    --muted: #a98b67;
-    --display: 'VT323', 'Courier New', monospace;
-    --body: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-    color-scheme: dark;
+    --bg: #f2f6f7;          /* Seitenhintergrund, kühles Hellgrau */
+    --panel: #ffffff;       /* Knöpfe, Eingabefeld */
+    --sky: #e3f3f4;         /* Spielfeld */
+    --turq: #00a0a8;        /* PD-Türkis: eigener Schläger, Hauptknopf */
+    --turq-dark: #007a82;   /* Türkis für Text und Hover */
+    --ink: #17394a;         /* dunkles Petrol: Text, Ball */
+    --muted: #5d7682;
+    --line: #c3dde1;
+    --cloud: #ffffff;       /* Wolke des Gegners */
+    --cloud-edge: #8fc6cc;
+    --font: 'Source Sans 3', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color-scheme: light;
   }
   html, body { height: 100%; }
   body {
     background: var(--bg);
-    color: var(--text);
-    font-family: var(--body);
-    font-size: 14px;
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
     padding: 16px;
     display: flex;
     flex-direction: column;
@@ -38,18 +41,18 @@
   }
   h1 {
     margin: 0;
-    font-family: var(--display);
-    font-weight: 400;
-    font-size: 40px;
-    letter-spacing: 0.12em;
-    color: var(--amber);
+    font-weight: 800;
+    font-size: 34px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
     line-height: 1;
-    text-shadow: 0 0 12px rgba(255, 181, 71, 0.35);
   }
+  h1 span { color: var(--turq); }
   #online {
     color: var(--muted);
     font-size: 12px;
-    letter-spacing: 0.06em;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     font-variant-numeric: tabular-nums;
   }
@@ -60,10 +63,10 @@
     max-width: 100%;
     height: auto;
     aspect-ratio: 8 / 5;
-    background: var(--bg);
-    border: 2px solid var(--line);
-    border-radius: 6px;
-    box-shadow: 0 0 40px rgba(255, 181, 71, 0.06), inset 0 0 60px rgba(0, 0, 0, 0.6);
+    background: var(--sky);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(23, 57, 74, 0.08);
     touch-action: none;
     cursor: ns-resize;
   }
@@ -75,7 +78,7 @@
     line-height: 1.4;
     text-wrap: balance;
   }
-  #status b { color: var(--amber); font-weight: 600; letter-spacing: 0.08em; }
+  #status b { color: var(--turq-dark); font-weight: 700; }
   .controls {
     width: min(100%, 880px);
     display: flex;
@@ -85,19 +88,19 @@
   }
   button, input {
     font: inherit;
-    font-size: 14px;
-    border-radius: 4px;
-    border: 1px solid var(--amber-dim);
+    font-size: 15px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
     background: var(--panel);
-    color: var(--text);
-    padding: 9px 14px;
+    color: var(--ink);
+    padding: 9px 16px;
   }
-  button { cursor: pointer; }
-  button:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
-  button.primary { background: var(--amber); color: var(--bg); border-color: var(--amber); font-weight: 600; }
-  button.primary:hover:not(:disabled) { color: var(--bg); filter: brightness(1.08); }
+  button { cursor: pointer; font-weight: 600; }
+  button:hover:not(:disabled) { border-color: var(--turq); color: var(--turq-dark); }
+  button.primary { background: var(--turq); color: #fff; border-color: var(--turq); }
+  button.primary:hover:not(:disabled) { background: var(--turq-dark); border-color: var(--turq-dark); color: #fff; }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--turq); outline-offset: 2px; }
   form { display: flex; gap: 6px; }
   input {
     width: 8.5em;
@@ -105,18 +108,19 @@
     letter-spacing: 0.12em;
   }
   input::placeholder { color: var(--muted); letter-spacing: 0.04em; }
-  .hint { margin: 0; color: var(--muted); font-size: 12px; text-align: center; }
+  .hint { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
   .hint kbd {
     font: inherit;
     border: 1px solid var(--line);
     border-radius: 3px;
     padding: 0 4px;
-    color: var(--text);
+    background: var(--panel);
+    color: var(--ink);
   }
 </style>
 
 <header class="top">
-  <h1>PONG DUELL</h1>
+  <h1><span>PD</span> Pong</h1>
   <span id="online">verbinde…</span>
 </header>
 
@@ -159,12 +163,15 @@
   const joinForm = document.getElementById('joinForm');
 
   const css = getComputedStyle(document.documentElement);
+  const tok = (n) => css.getPropertyValue(n).trim();
   const C = {
-    bg: css.getPropertyValue('--bg').trim(),
-    amber: css.getPropertyValue('--amber').trim(),
-    dim: css.getPropertyValue('--amber-dim').trim(),
-    line: css.getPropertyValue('--line').trim(),
-    text: css.getPropertyValue('--text').trim(),
+    sky: tok('--sky'),
+    turq: tok('--turq'),
+    ink: tok('--ink'),
+    muted: tok('--muted'),
+    line: tok('--line'),
+    cloud: tok('--cloud'),
+    cloudEdge: tok('--cloud-edge'),
   };
 
   // ---- Spielphysik -------------------------------------------------------
@@ -581,44 +588,86 @@
     prev = { vx: v.vx, vy: v.vy, s: v.s.slice(), st: v.st };
   }
 
+  // Der Gegner ist eine Wolke: flache Seite zur Wand, Bauschen zum Ball hin.
+  // Die Bauschen ragen nur ein paar Pixel über die Trefferkante des Schlägers hinaus.
+  const PUFFS = [
+    // [Abstand von der Trefferkante zur Wand hin, y-Anteil der Schlägerhöhe, Radius]
+    [10, 0.12, 11], [10, 0.4, 15], [9, 0.72, 13], [14, 0.92, 10],
+  ];
+  function cloud(i, y) {
+    const out = i === 0 ? -1 : 1;                  // Richtung zur Wand
+    const face = i === 0 ? PM + PW : W - PM - PW;   // Trefferkante
+    const shape = () => {
+      ctx.beginPath();
+      for (const [dx, fy, r] of PUFFS) {
+        const x = face + out * dx, yy = y + fy * PH;
+        ctx.moveTo(x + r, yy);
+        ctx.arc(x, yy, r, 0, Math.PI * 2);
+      }
+      const bx = i === 0 ? face - 26 : face + 8;
+      if (ctx.roundRect) ctx.roundRect(bx, y + 4, 18, PH - 2, 9);
+      else ctx.rect(bx, y + 4, 18, PH - 2);
+    };
+    ctx.save();
+    ctx.shadowColor = 'rgba(23, 57, 74, 0.18)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 3;
+    shape();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = C.cloudEdge;
+    ctx.stroke();
+    ctx.restore();
+    shape();
+    ctx.fillStyle = C.cloud;
+    ctx.fill();
+  }
+
+  function paddle(i, y) {
+    const x = i === 0 ? PM : W - PM - PW;
+    ctx.fillStyle = C.turq;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, PW, PH, 6);
+    else ctx.rect(x, y, PW, PH);
+    ctx.fill();
+  }
+
   function draw(v) {
-    ctx.fillStyle = C.bg;
+    ctx.fillStyle = C.sky;
     ctx.fillRect(0, 0, W, H);
 
     ctx.fillStyle = C.line;
     for (let y = 8; y < H; y += 28) ctx.fillRect(W / 2 - 2, y, 4, 14);
 
-    ctx.fillStyle = C.dim;
-    ctx.font = '96px VT323, "Courier New", monospace';
+    ctx.fillStyle = C.cloudEdge;
+    ctx.font = '700 96px "Source Sans 3", "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(String(v.s[0]), W / 4, 18);
-    ctx.fillText(String(v.s[1]), (W * 3) / 4, 18);
+    ctx.fillText(String(v.s[0]), W / 4, 14);
+    ctx.fillText(String(v.s[1]), (W * 3) / 4, 14);
 
     const mySeat = mode === 'cpu' ? 0 : mode === 'online' && net ? net.seat : -1;
-    const xs = [PM, W - PM - PW];
-    ctx.shadowColor = C.amber;
     for (let i = 0; i < 2; i++) {
       if (v.st === 'wait' && i !== mySeat) continue;
-      ctx.fillStyle = mySeat === -1 || i === mySeat ? C.amber : C.dim;
-      ctx.shadowBlur = i === mySeat ? 14 : 0;
-      ctx.fillRect(xs[i], pads[i], PW, PH);
+      // Eigener Schläger türkis, Gegner als Wolke. Wer zuschaut, sieht links Schläger, rechts Wolke.
+      const isCloud = mySeat === -1 ? i === 1 : i !== mySeat;
+      if (isCloud) cloud(i, pads[i]);
+      else paddle(i, pads[i]);
     }
     if (v.st === 'serve' || v.st === 'play') {
-      ctx.fillStyle = C.text;
-      ctx.shadowBlur = 12;
-      ctx.fillRect(v.bx, v.by, BALL, BALL);
+      ctx.fillStyle = C.ink;
+      ctx.beginPath();
+      ctx.arc(v.bx + BALL / 2, v.by + BALL / 2, BALL / 2, 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.shadowBlur = 0;
 
     let big = '';
-    if (mode === 'demo') big = 'DEMO';
-    else if (v.st === 'wait') big = 'WARTE AUF GEGNER';
-    else if (v.st === 'over') big = mySeat === -1 ? (v.w === 0 ? 'LINKS GEWINNT' : 'RECHTS GEWINNT') : v.w === mySeat ? 'GEWONNEN!' : 'VERLOREN';
+    if (mode === 'demo') big = 'Demo';
+    else if (v.st === 'wait') big = 'Warte auf Gegner…';
+    else if (v.st === 'over') big = mySeat === -1 ? (v.w === 0 ? 'Links gewinnt' : 'Rechts gewinnt') : v.w === mySeat ? 'Gewonnen!' : 'Verloren';
     if (big) {
-      ctx.font = (mode === 'demo' ? '44px' : '64px') + ' VT323, "Courier New", monospace';
+      ctx.font = '700 ' + (mode === 'demo' ? '40px' : '56px') + ' "Source Sans 3", "Segoe UI", system-ui, sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = mode === 'demo' ? C.dim : C.amber;
+      ctx.fillStyle = mode === 'demo' ? C.muted : C.turq;
       ctx.fillText(big, W / 2, H / 2);
     }
   }
