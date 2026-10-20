@@ -3,66 +3,132 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>Online Pong</title>
+  <title>PD Pong</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap">
   <style>
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      height: 100%;
-      background: #111;
-      color: #eee;
-      font-family: system-ui, sans-serif;
+    /* Gleiche Farben wie die claude.ai-Version (artifact/pong-duell.html). Exakte PD-Werte hier eintragen. */
+    :root {
+      --bg: #f2f6f7;
+      --panel: #ffffff;
+      --sky: #e3f3f4;
+      --turq: #00a0a8;
+      --turq-dark: #007a82;
+      --ink: #17394a;
+      --muted: #5d7682;
+      --line: #c3dde1;
+      --cloud: #ffffff;
+      --cloud-edge: #8fc6cc;
+      --font: 'Source Sans 3', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color-scheme: light;
     }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
     body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+      font-size: 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 12px;
       padding: 16px;
+      overflow-x: hidden;
+    }
+    .top {
+      width: min(100%, 880px);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    h1 { margin: 0; font-weight: 800; font-size: 34px; line-height: 1; }
+    h1 span { color: var(--turq); }
+    #conn {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
     canvas {
-      background: #000;
-      border: 2px solid #333;
-      width: min(100%, 800px, calc((100vh - 160px) * 1.6));
+      display: block;
+      width: min(100%, 880px, calc((100vh - 240px) * 1.6));
+      min-width: 260px;
+      max-width: 100%;
       height: auto;
+      background: var(--sky);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(23, 57, 74, 0.08);
       touch-action: none;
     }
-    #info { text-align: center; min-height: 1.5em; }
-    #controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    #info {
+      margin: 0;
+      width: min(100%, 880px);
+      min-height: 1.5em;
+      text-align: center;
+      line-height: 1.4;
+      text-wrap: balance;
+    }
+    #info b { color: var(--turq-dark); }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
     button {
-      background: #2a2a2a;
-      color: #eee;
-      border: 1px solid #555;
+      font: inherit;
+      font-weight: 600;
       border-radius: 6px;
-      padding: 8px 14px;
-      font-size: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 9px 16px;
       cursor: pointer;
     }
-    button:hover { background: #3a3a3a; }
-    #link { color: #8cf; word-break: break-all; }
-    .hint { color: #888; font-size: 13px; }
+    button:hover { border-color: var(--turq); color: var(--turq-dark); }
+    button.primary { background: var(--turq); border-color: var(--turq); color: #fff; }
+    button.primary:hover { background: var(--turq-dark); border-color: var(--turq-dark); color: #fff; }
+    button:focus-visible { outline: 2px solid var(--turq); outline-offset: 2px; }
+    #link { color: var(--turq-dark); word-break: break-all; user-select: all; }
+    .hint { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
   </style>
 </head>
 <body>
-  <canvas id="game" width="800" height="500"></canvas>
-  <div id="info">Verbinde…</div>
-  <div id="controls">
-    <button id="private">Privates Spiel mit Freund</button>
+  <header class="top">
+    <h1><span>PD</span> Pong</h1>
+    <span id="conn">verbinde…</span>
+  </header>
+  <canvas id="game" width="800" height="500" aria-label="Pong-Spielfeld"></canvas>
+  <p id="info" role="status" aria-live="polite">Verbinde…</p>
+  <div class="controls">
+    <button id="private" class="primary" type="button">Privates Spiel mit Kollegen</button>
     <span id="link"></span>
+    <button id="copy" type="button" hidden>Link kopieren</button>
   </div>
-  <div class="hint">Steuerung: W/S oder ↑/↓ · Am Handy: Finger aufs Spielfeld</div>
+  <p class="hint">Steuerung: W/S oder ↑/↓ · Am Handy: Finger aufs Spielfeld · Wer zuerst 7 Punkte hat, gewinnt</p>
 
   <script>
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
     const info = document.getElementById('info');
+    const conn = document.getElementById('conn');
     const linkEl = document.getElementById('link');
+    const copyBtn = document.getElementById('copy');
+
+    const css = getComputedStyle(document.documentElement);
+    const tok = (n) => css.getPropertyValue(n).trim();
+    const C = {
+      sky: tok('--sky'), turq: tok('--turq'), ink: tok('--ink'), muted: tok('--muted'),
+      line: tok('--line'), cloud: tok('--cloud'), cloudEdge: tok('--cloud-edge'),
+    };
+    const FONT = '"Source Sans 3", "Segoe UI", system-ui, sans-serif';
 
     let field = { W: 800, H: 500, PADDLE_W: 12, PADDLE_H: 80, PADDLE_MARGIN: 20, BALL: 12, WIN_SCORE: 7 };
     let mySide = null;
     let state = null;
     let connected = false;
+    let shareUrl = '';
 
     // --- Verbindung -------------------------------------------------------
     const room = new URLSearchParams(location.search).get('room');
@@ -70,10 +136,11 @@
       (room ? '/?room=' + encodeURIComponent(room) : '/');
     const ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => { connected = true; };
+    ws.onopen = () => { connected = true; conn.textContent = 'online'; };
     ws.onclose = () => {
       connected = false;
-      info.textContent = 'Verbindung getrennt – Seite neu laden, um weiterzuspielen.';
+      conn.textContent = 'offline';
+      info.textContent = 'Verbindung getrennt. Lade die Seite neu, um weiterzuspielen.';
     };
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
@@ -81,19 +148,31 @@
         mySide = msg.side;
         field = msg.field;
         if (msg.room) {
-          linkEl.textContent = 'Link zum Teilen: ' + location.origin + '/?room=' + msg.room;
+          shareUrl = location.origin + '/?room=' + msg.room;
+          linkEl.textContent = shareUrl;
+          copyBtn.hidden = false;
         }
       } else if (msg.type === 'state') {
         state = msg;
         updateInfo();
       } else if (msg.type === 'full') {
-        info.textContent = 'Dieser Raum ist schon voll.';
+        info.textContent = 'Dieses Spiel ist schon voll. Starte ein eigenes privates Spiel.';
       }
     };
 
     document.getElementById('private').onclick = () => {
       const code = Math.random().toString(36).slice(2, 8);
       location.href = '/?room=' + code;
+    };
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        copyBtn.textContent = 'Kopiert';
+      } catch {
+        getSelection().selectAllChildren(linkEl);
+        copyBtn.textContent = 'Markiert, mit Strg+C kopieren';
+      }
+      setTimeout(() => { copyBtn.textContent = 'Link kopieren'; }, 2000);
     };
 
     // --- Steuerung --------------------------------------------------------
@@ -153,55 +232,98 @@
       if (!state) return;
       const sideName = mySide === 0 ? 'links' : 'rechts';
       if (state.st === 'waiting') {
-        info.textContent = 'Warte auf einen zweiten Spieler…';
+        info.innerHTML = room
+          ? 'Warte auf deinen Kollegen. Schick ihm den Link unten.'
+          : 'Warte auf einen zweiten Spieler. Sobald jemand diese Seite öffnet, geht es los.';
       } else if (state.st === 'over') {
-        info.textContent = (state.w === mySide ? 'Du hast gewonnen! 🎉' : 'Du hast verloren.') +
-          ' Neue Runde startet gleich…';
+        info.innerHTML = (state.w === mySide ? '<b>Gewonnen!</b>' : 'Diesmal verloren.') + ' Neue Runde startet gleich.';
       } else {
-        info.textContent = 'Du spielst ' + sideName + ' (hell). Erster bis ' + field.WIN_SCORE + ' Punkte gewinnt.';
+        info.innerHTML = 'Du spielst <b>' + sideName + '</b> (türkiser Schläger), dein Gegner ist die Wolke.';
       }
     }
 
+    // Der Gegner ist eine Wolke: flache Seite zur Wand, Bauschen zum Ball hin.
+    const PUFFS = [
+      // [Abstand von der Trefferkante zur Wand hin, y-Anteil der Schlägerhöhe, Radius]
+      [10, 0.12, 11], [10, 0.4, 15], [9, 0.72, 13], [14, 0.92, 10],
+    ];
+    function cloud(i, y) {
+      const { W, PADDLE_W, PADDLE_H, PADDLE_MARGIN } = field;
+      const out = i === 0 ? -1 : 1;
+      const face = i === 0 ? PADDLE_MARGIN + PADDLE_W : W - PADDLE_MARGIN - PADDLE_W;
+      const shape = () => {
+        ctx.beginPath();
+        for (const [dx, fy, r] of PUFFS) {
+          const x = face + out * dx, yy = y + fy * PADDLE_H;
+          ctx.moveTo(x + r, yy);
+          ctx.arc(x, yy, r, 0, Math.PI * 2);
+        }
+        const bx = i === 0 ? face - 26 : face + 8;
+        if (ctx.roundRect) ctx.roundRect(bx, y + 4, 18, PADDLE_H - 2, 9);
+        else ctx.rect(bx, y + 4, 18, PADDLE_H - 2);
+      };
+      ctx.save();
+      ctx.shadowColor = 'rgba(23, 57, 74, 0.18)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 3;
+      shape();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = C.cloudEdge;
+      ctx.stroke();
+      ctx.restore();
+      shape();
+      ctx.fillStyle = C.cloud;
+      ctx.fill();
+    }
+
+    function paddle(i, y) {
+      const { W, PADDLE_W, PADDLE_H, PADDLE_MARGIN } = field;
+      const x = i === 0 ? PADDLE_MARGIN : W - PADDLE_MARGIN - PADDLE_W;
+      ctx.fillStyle = C.turq;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, PADDLE_W, PADDLE_H, 6);
+      else ctx.rect(x, y, PADDLE_W, PADDLE_H);
+      ctx.fill();
+    }
+
     function draw() {
-      const { W, H, PADDLE_W, PADDLE_H, PADDLE_MARGIN, BALL } = field;
-      ctx.fillStyle = '#000';
+      const { W, H, BALL } = field;
+      ctx.fillStyle = C.sky;
       ctx.fillRect(0, 0, W, H);
 
-      // Mittellinie
-      ctx.fillStyle = '#333';
-      for (let y = 10; y < H; y += 30) ctx.fillRect(W / 2 - 2, y, 4, 15);
+      ctx.fillStyle = C.line;
+      for (let y = 8; y < H; y += 28) ctx.fillRect(W / 2 - 2, y, 4, 14);
 
       if (!state) return;
 
-      // Punkte
-      ctx.fillStyle = '#555';
-      ctx.font = 'bold 64px monospace';
+      ctx.fillStyle = C.cloudEdge;
+      ctx.font = '700 96px ' + FONT;
       ctx.textAlign = 'center';
-      ctx.fillText(state.s[0], W / 4, 80);
-      ctx.fillText(state.s[1], (W * 3) / 4, 80);
+      ctx.textBaseline = 'top';
+      ctx.fillText(state.s[0], W / 4, 14);
+      ctx.fillText(state.s[1], (W * 3) / 4, 14);
 
-      // Schläger (der eigene ist heller)
-      const xs = [PADDLE_MARGIN, W - PADDLE_MARGIN - PADDLE_W];
       for (let i = 0; i < 2; i++) {
         if (state.st === 'waiting' && i !== mySide) continue;
-        ctx.fillStyle = i === mySide ? '#fff' : '#777';
-        ctx.fillRect(xs[i], state.p[i], PADDLE_W, PADDLE_H);
+        if (i === mySide) paddle(i, state.p[i]);
+        else cloud(i, state.p[i]);
       }
 
-      // Ball
       if (state.b && state.st !== 'over') {
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(state.b[0], state.b[1], BALL, BALL);
+        ctx.fillStyle = C.ink;
+        ctx.beginPath();
+        ctx.arc(state.b[0] + BALL / 2, state.b[1] + BALL / 2, BALL / 2, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      // Großer Text in der Mitte
       let text = '';
       if (state.st === 'waiting') text = 'Warte auf Gegner…';
-      else if (state.st === 'over') text = state.w === mySide ? 'Gewonnen!' : 'Verloren!';
+      else if (state.st === 'over') text = state.w === mySide ? 'Gewonnen!' : 'Verloren';
       if (text) {
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 40px system-ui, sans-serif';
-        ctx.fillText(text, W / 2, H / 2 + 14);
+        ctx.fillStyle = C.turq;
+        ctx.font = '700 56px ' + FONT;
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, W / 2, H / 2);
       }
     }
 
