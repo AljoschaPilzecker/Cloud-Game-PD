@@ -1,0 +1,9 @@
+# Bauplan für Render (render.com): legt den Pong-Server als kostenlosen Web-Service an.
+services:
+  - type: web
+    name: pd-pong
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /

@@ -234,6 +234,12 @@ setInterval(() => {
   for (const room of rooms.values()) tick(room);
 }, TICK_MS);
 
+// Wer allein wartet, bekommt keine Spieldaten. Ein Ping alle 25 Sekunden hält die
+// Verbindung offen, damit Hoster sie nicht als untätig schließen.
+setInterval(() => {
+  for (const ws of wss.clients) ws.ping();
+}, 25000);
+
 server.listen(PORT, () => {
   console.log(`Pong läuft auf http://localhost:${PORT}`);
 });
