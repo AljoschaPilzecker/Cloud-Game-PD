@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>PD Pong zu viert</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap">
+  <style>
+    /* Gleiche Farben wie das 2er-Spiel (public/index.html). Exakte PD-Werte hier eintragen. */
+    :root {
+      --bg: #f2f6f7;
+      --panel: #ffffff;
+      --sky: #e3f3f4;
+      --turq: #00a0a8;
+      --turq-dark: #007a82;
+      --ink: #17394a;
+      --muted: #5d7682;
+      --line: #c3dde1;
+      --wall: #a9cdd2;
+      --cloud: #ffffff;
+      --cloud-edge: #8fc6cc;
+      --font: 'Source Sans 3', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+      font-size: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+    .top {
+      width: min(100%, 640px);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    h1 { margin: 0; font-weight: 800; font-size: 34px; line-height: 1; }
+    h1 span { color: var(--turq); }
+    h1 small { font-size: 0.55em; font-weight: 600; color: var(--muted); }
+    #conn {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    canvas {
+      display: block;
+      width: min(100%, 640px, calc(100vh - 230px));
+      min-width: 260px;
+      max-width: 100%;
+      aspect-ratio: 1;
+      height: auto;
+      background: var(--sky);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(23, 57, 74, 0.08);
+      touch-action: none;
+    }
+    #info {
+      margin: 0;
+      width: min(100%, 640px);
+      min-height: 1.5em;
+      text-align: center;
+      line-height: 1.4;
+      text-wrap: balance;
+    }
+    #info b { color: var(--turq-dark); }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    button {
+      font: inherit;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      padding: 9px 16px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--turq); color: var(--turq-dark); }
+    button.primary { background: var(--turq); border-color: var(--turq); color: #fff; }
+    button.primary:hover { background: var(--turq-dark); border-color: var(--turq-dark); color: #fff; }
+    button:focus-visible { outline: 2px solid var(--turq); outline-offset: 2px; }
+    #link { color: var(--turq-dark); word-break: break-all; user-select: all; }
+    .hint { margin: 0; color: var(--muted); font-size: 13px; text-align: center; max-width: 640px; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <h1><span>PD</span> Pong <small>zu viert</small></h1>
+    <span id="conn">verbinde…</span>
+  </header>
+  <canvas id="game" aria-label="Pong-Spielfeld für vier Spieler"></canvas>
+  <p id="info" role="status" aria-live="polite">Verbinde…</p>
+  <div class="controls">
+    <button id="private" class="primary" type="button">Privates Spiel mit Kollegen</button>
+    <span id="link"></span>
+    <button id="copy" type="button" hidden>Link kopieren</button>
+  </div>
+  <p class="hint">Deine Seite ist immer unten. Steuerung: A/D oder ←/→, Maus oder Finger aufs Spielfeld. Jeder hat 5 Leben, wer zuletzt übrig ist, gewinnt.</p>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const info = document.getElementById('info');
+    const conn = document.getElementById('conn');
+    const linkEl = document.getElementById('link');
+    const copyBtn = document.getElementById('copy');
+
+    const css = getComputedStyle(document.documentElement);
+    const tok = (n) => css.getPropertyValue(n).trim();
+    const C = {
+      sky: tok('--sky'), turq: tok('--turq'), ink: tok('--ink'), muted: tok('--muted'),
+      line: tok('--line'), wall: tok('--wall'), cloud: tok('--cloud'), cloudEdge: tok('--cloud-edge'),
+    };
+    const FONT = '"Source Sans 3", "Segoe UI", system-ui, sans-serif';
+
+    let F = { S: 600, PADDLE_L: 90, PADDLE_T: 12, MARGIN: 16, CORNER: 40, BALL: 12, LIVES: 5, MAX_PLAYERS: 4 };
+    let mySide = null;
+    let state = null;
+    let connected = false;
+    let shareUrl = '';
+    let full = false;
+
+    // Schärfe auf hochauflösenden Bildschirmen
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function sizeCanvas() {
+      canvas.width = F.S * dpr;
+      canvas.height = F.S * dpr;
+    }
+    sizeCanvas();
+
+    // --- Verbindung -------------------------------------------------------
+    const room = new URLSearchParams(location.search).get('room');
+    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/vier' +
+      (room ? '?room=' + encodeURIComponent(room) : '');
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => { connected = true; conn.textContent = 'online'; };
+    ws.onclose = () => {
+      connected = false;
+      conn.textContent = 'offline';
+      if (!full) info.textContent = 'Verbindung getrennt. Lade die Seite neu, um weiterzuspielen.';
+    };
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'welcome') {
+        mySide = msg.side;
+        F = msg.field;
+        sizeCanvas();
+        if (msg.room) {
+          shareUrl = location.origin + '/vier?room=' + msg.room;
+          linkEl.textContent = shareUrl;
+          copyBtn.hidden = false;
+        }
+      } else if (msg.type === 'state') {
+        state = msg;
+        updateInfo();
+      } else if (msg.type === 'full') {
+        full = true;
+        info.textContent = 'Dieses Spiel ist schon voll (4 Spieler). Starte ein eigenes privates Spiel.';
+      }
+    };
+
+    document.getElementById('private').onclick = () => {
+      const code = Math.random().toString(36).slice(2, 8);
+      location.href = '/vier?room=' + code;
+    };
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        copyBtn.textContent = 'Kopiert';
+      } catch {
+        getSelection().selectAllChildren(linkEl);
+        copyBtn.textContent = 'Markiert, mit Strg+C kopieren';
+      }
+      setTimeout(() => { copyBtn.textContent = 'Link kopieren'; }, 2000);
+    };
+
+    // --- Drehung: die eigene Seite liegt immer unten ------------------------
+    // Seiten im Feld: 0 unten, 1 links, 2 oben, 3 rechts
+    const VIEW_ANGLE = [0, -Math.PI / 2, Math.PI, Math.PI / 2];
+    const angle = () => VIEW_ANGLE[mySide ?? 0];
+
+    // Feldpunkt -> Bildschirmpunkt (in Feldeinheiten, vor dem dpr-Maßstab)
+    function toScreen(x, y) {
+      const a = angle(), h = F.S / 2;
+      const dx = x - h, dy = y - h;
+      return [dx * Math.cos(a) - dy * Math.sin(a) + h, dx * Math.sin(a) + dy * Math.cos(a) + h];
+    }
+
+    // --- Steuerung --------------------------------------------------------
+    let keyDir = 0;
+    let pointerX = null;
+    let sentDir = 0;
+    const pressed = new Set();
+
+    function sendDir(dir) {
+      if (dir !== sentDir && connected) {
+        sentDir = dir;
+        ws.send(JSON.stringify({ type: 'input', dir }));
+      }
+    }
+
+    function updateKeyDir() {
+      const left = pressed.has('arrowleft') || pressed.has('a');
+      const right = pressed.has('arrowright') || pressed.has('d');
+      keyDir = left === right ? 0 : (left ? -1 : 1);
+      if (keyDir !== 0) pointerX = null;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) e.preventDefault();
+      pressed.add(e.key.toLowerCase());
+      updateKeyDir();
+    });
+    window.addEventListener('keyup', (e) => {
+      pressed.delete(e.key.toLowerCase());
+      updateKeyDir();
+    });
+    window.addEventListener('blur', () => { pressed.clear(); updateKeyDir(); });
+
+    function setPointer(clientX) {
+      const rect = canvas.getBoundingClientRect();
+      pointerX = ((clientX - rect.left) / rect.width) * F.S;
+    }
+    canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') setPointer(e.clientX); });
+    canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') pointerX = null; });
+    function setTouch(e) {
+      e.preventDefault();
+      setPointer(e.touches[0].clientX);
+    }
+    canvas.addEventListener('touchstart', setTouch, { passive: false });
+    canvas.addEventListener('touchmove', setTouch, { passive: false });
+    canvas.addEventListener('touchend', () => { pointerX = null; });
+    canvas.addEventListener('touchcancel', () => { pointerX = null; });
+
+    function myPaddleCenter() {
+      // Mitte des eigenen Schlägers in Bildschirmkoordinaten
+      const pos = state.p[mySide] + F.PADDLE_L / 2;
+      const along = mySide === 0 || mySide === 2;
+      return toScreen(along ? pos : F.S / 2, along ? F.S / 2 : pos)[0];
+    }
+
+    function currentDir() {
+      if (keyDir !== 0) return keyDir;
+      if (pointerX !== null && state && mySide !== null) {
+        const center = myPaddleCenter();
+        if (pointerX < center - 8) return -1;
+        if (pointerX > center + 8) return 1;
+      }
+      return 0;
+    }
+
+    // --- Text unter dem Spielfeld ------------------------------------------
+    const inRound = (s) => state && state.l[s] !== null;
+    const isAlive = (s) => state && state.l[s] > 0;
+    const players = () => (state ? state.c.filter(Boolean).length : 0);
+
+    function updateInfo() {
+      if (!state || mySide === null) return;
+      const n = players();
+      const count = n + (n === 1 ? ' Spieler' : ' Spieler') + ' im Raum';
+      if (state.st === 'waiting') {
+        info.innerHTML = room
+          ? 'Warte auf Kollegen. Schick ihnen den Link unten (bis zu 4 Spieler).'
+          : 'Warte auf Mitspieler. Ab 2 Spielern geht es los, bis zu 4 können mitmachen.';
+      } else if (state.st === 'countdown') {
+        info.innerHTML = 'Runde startet gleich. ' + count + '.';
+      } else if (state.st === 'over') {
+        info.innerHTML = (state.w === mySide ? '<b>Gewonnen!</b>' : state.w === null ? 'Unentschieden.' : 'Diesmal hat jemand anderes gewonnen.') +
+          ' Neue Runde startet gleich.';
+      } else if (!inRound(mySide)) {
+        info.innerHTML = 'Die Runde läuft schon. Du steigst in der nächsten Runde ein.';
+      } else if (!isAlive(mySide)) {
+        info.innerHTML = 'Du bist raus. Schau zu, gleich gibt es eine neue Runde.';
+      } else {
+        info.innerHTML = 'Du spielst <b>unten</b> (türkiser Schläger), deine Gegner sind die Wolken. ' + count + '.';
+      }
+    }
+
+    // --- Zeichnen ---------------------------------------------------------
+    // Lokales Koordinatensystem pro Seite: Schläger liegt waagerecht auf x = 0..PADDLE_L,
+    // y = 0 ist die Trefferkante (zur Mitte), +y zeigt zur Wand.
+    function sideFrame(side, pos) {
+      const { S, MARGIN, PADDLE_T, PADDLE_L } = F;
+      const face = MARGIN + PADDLE_T;
+      if (side === 0) { ctx.translate(pos, S - face); }
+      else if (side === 2) { ctx.translate(pos + PADDLE_L, face); ctx.rotate(Math.PI); }
+      else if (side === 1) { ctx.translate(face, pos); ctx.rotate(Math.PI / 2); }
+      else { ctx.translate(S - face, pos + PADDLE_L); ctx.rotate(-Math.PI / 2); }
+    }
+
+    // Wolke: Bauschen zur Mitte, flache Seite zur Wand
+    const PUFFS = [
+      // [Anteil der Schlägerlänge, Abstand zur Wand hin, Radius]
+      [0.12, 10, 11], [0.4, 10, 15], [0.72, 9, 13], [0.92, 14, 10],
+    ];
+    function cloudShape() {
+      const L = F.PADDLE_L;
+      ctx.beginPath();
+      for (const [fx, dy, r] of PUFFS) {
+        ctx.moveTo(fx * L + r, dy);
+        ctx.arc(fx * L, dy, r, 0, Math.PI * 2);
+      }
+      if (ctx.roundRect) ctx.roundRect(2, 8, L - 2, 18, 9);
+      else ctx.rect(2, 8, L - 2, 18);
+    }
+    function drawCloud() {
+      ctx.save();
+      ctx.shadowColor = 'rgba(23, 57, 74, 0.18)';
+      ctx.shadowBlur = 10 * dpr;
+      ctx.shadowOffsetY = 3 * dpr;
+      cloudShape();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = C.cloudEdge;
+      ctx.stroke();
+      ctx.restore();
+      cloudShape();
+      ctx.fillStyle = C.cloud;
+      ctx.fill();
+    }
+    function drawPaddle() {
+      ctx.fillStyle = C.turq;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(0, 0, F.PADDLE_L, F.PADDLE_T, 6);
+      else ctx.rect(0, 0, F.PADDLE_L, F.PADDLE_T);
+      ctx.fill();
+    }
+
+    function drawWall(side) {
+      const { S, CORNER } = F;
+      const t = 8;
+      ctx.fillStyle = C.wall;
+      if (side === 0) ctx.fillRect(CORNER, S - t, S - 2 * CORNER, t);
+      else if (side === 2) ctx.fillRect(CORNER, 0, S - 2 * CORNER, t);
+      else if (side === 1) ctx.fillRect(0, CORNER, t, S - 2 * CORNER);
+      else ctx.fillRect(S - t, CORNER, t, S - 2 * CORNER);
+    }
+
+    // Leben als Punkte, aufrecht in Bildschirmkoordinaten
+    function drawLives(side) {
+      const { S, LIVES } = F;
+      const inset = 78;
+      const mid = [[S / 2, S - inset], [inset, S / 2], [S / 2, inset], [S - inset, S / 2]][side];
+      const [sx, sy] = toScreen(mid[0], mid[1]);
+      const lives = state.l[side];
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      if (lives === 0) {
+        ctx.fillStyle = C.muted;
+        ctx.font = '600 16px ' + FONT;
+        ctx.fillText(side === mySide ? 'Du bist raus' : 'raus', sx, sy);
+        return;
+      }
+      const gap = 14;
+      const x0 = sx - ((LIVES - 1) * gap) / 2;
+      for (let i = 0; i < LIVES; i++) {
+        ctx.beginPath();
+        ctx.arc(x0 + i * gap, sy, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = i < lives ? (side === mySide ? C.turq : C.cloudEdge) : C.line;
+        ctx.fill();
+      }
+      if (side === mySide) {
+        ctx.fillStyle = C.turq;
+        ctx.font = '700 14px ' + FONT;
+        ctx.fillText('DU', sx, sy - 18);
+      }
+    }
+
+    function draw() {
+      const { S, CORNER, BALL } = F;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = C.sky;
+      ctx.fillRect(0, 0, S, S);
+
+      if (!state || mySide === null) return;
+
+      // Spielfeld gedreht zeichnen, eigene Seite unten
+      ctx.save();
+      ctx.translate(S / 2, S / 2);
+      ctx.rotate(angle());
+      ctx.translate(-S / 2, -S / 2);
+
+      ctx.fillStyle = C.line;
+      for (const [x, y] of [[0, 0], [S - CORNER, 0], [0, S - CORNER], [S - CORNER, S - CORNER]]) {
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, CORNER, CORNER, 6);
+        else ctx.rect(x, y, CORNER, CORNER);
+        ctx.fill();
+      }
+
+      const showRound = state.st !== 'waiting' && state.st !== 'countdown';
+      for (let s = 0; s < 4; s++) {
+        // Vor der Runde: alle Verbundenen zeigen. In der Runde: nur wer noch lebt.
+        const here = showRound ? isAlive(s) : state.c[s];
+        if (!here) { drawWall(s); continue; }
+        ctx.save();
+        sideFrame(s, state.p[s]);
+        if (s === mySide) drawPaddle();
+        else drawCloud();
+        ctx.restore();
+      }
+
+      if (state.b && (state.st === 'serve' || state.st === 'playing')) {
+        ctx.fillStyle = C.ink;
+        ctx.beginPath();
+        ctx.arc(state.b[0] + BALL / 2, state.b[1] + BALL / 2, BALL / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Ab hier aufrecht
+      if (showRound) for (let s = 0; s < 4; s++) if (inRound(s)) drawLives(s);
+
+      let text = '';
+      let small = '';
+      if (state.st === 'waiting') { text = 'Warte auf Mitspieler…'; small = players() + ' von 4 da'; }
+      else if (state.st === 'countdown') { text = String(state.t); small = players() + ' von 4 da'; }
+      else if (state.st === 'over') text = state.w === mySide ? 'Gewonnen!' : state.w === null ? 'Unentschieden' : 'Verloren';
+      if (text) {
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = C.turq;
+        ctx.font = '700 ' + (state.st === 'countdown' ? '96px ' : '48px ') + FONT;
+        ctx.fillText(text, S / 2, S / 2);
+        if (small) {
+          ctx.fillStyle = C.muted;
+          ctx.font = '600 18px ' + FONT;
+          ctx.fillText(small, S / 2, S / 2 + (state.st === 'countdown' ? 70 : 44));
+        }
+      }
+    }
+
+    function loop() {
+      sendDir(currentDir());
+      draw();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>

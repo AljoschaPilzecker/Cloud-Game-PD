@@ -3,6 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
+const vier = require('./vier');
 
 const PORT = process.env.PORT || 3000;
 
@@ -22,19 +23,33 @@ const SERVE_TICKS = 60; // 1 Sekunde Pause vor jedem Aufschlag
 const OVER_TICKS = 300; // 5 Sekunden bis zur nächsten Runde
 
 const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'));
+const vierHtml = fs.readFileSync(path.join(__dirname, 'public', 'vier.html'));
 
 const server = http.createServer((req, res) => {
   const { pathname } = new URL(req.url, 'http://localhost');
   if (pathname === '/') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(indexHtml);
+  } else if (pathname === '/vier') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(vierHtml);
   } else {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Nicht gefunden');
   }
 });
 
-const wss = new WebSocketServer({ server });
+// Zwei Spiele auf einem Server: "/" ist das 2er-Spiel, "/vier" das 4er-Spiel
+const wss = new WebSocketServer({ noServer: true });
+server.on('upgrade', (req, socket, head) => {
+  const { pathname } = new URL(req.url, 'http://localhost');
+  const target = pathname === '/' ? wss : pathname === '/vier' ? vier.wss : null;
+  if (!target) {
+    socket.destroy();
+    return;
+  }
+  target.handleUpgrade(req, socket, head, (ws) => target.emit('connection', ws, req));
+});
 const rooms = new Map();
 let nextPublicId = 1;
 
@@ -238,6 +253,7 @@ setInterval(() => {
 // Verbindung offen, damit Hoster sie nicht als untätig schließen.
 setInterval(() => {
   for (const ws of wss.clients) ws.ping();
+  for (const ws of vier.wss.clients) ws.ping();
 }, 25000);
 
 server.listen(PORT, () => {
